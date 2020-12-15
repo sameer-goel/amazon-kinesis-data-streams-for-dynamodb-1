@@ -44,11 +44,10 @@ function Windspeed() {
       const generateValues = { 
         index: i+j,
         deviceID: "device" + (Math.floor(Math.random() * 5) + 1),
-        value: Math.floor(Math.random() * (upper - lower + 1)) + lower
+        value: Math.floor(Math.random() * upper) + lower
       };
       await API.graphql({ query: mutations.createWindspeed, variables: { input: generateValues}});
       setMyIndex(myIndex+1);
-      // console.log('i->', i, 'lower->', lower, 'upper->', upper)
     }
   }
 
@@ -120,7 +119,6 @@ function Windspeed() {
   });
 
   const { handleSubmit, register, errors } = useForm({resolver: yupResolver(schema)});
-  
   const onSubmit = data => {
     toast.success(`Updating Values: ${loop} Min: ${lower} Max: ${upper}`, 500, () => {
       console.log('data->',data);
@@ -157,31 +155,28 @@ function Windspeed() {
           />            
           <button type="submit">Save {" "}<FontAwesomeIcon icon={faSave} /></button>
 
-        </form>
-      </div>
+          </form>
+        </div>
 
         <div className="App-buttons">
           <button onClick={generate}>
-            Generate Records
+            Generate data
           </button>
 
           <button onClick={refresh}>
             <FontAwesomeIcon icon={faSync}/>
           </button>
-
-          <button>
-            <a href="https://us-west-2.console.aws.amazon.com/dynamodb/home?region=us-west-2#tables:" target="_blank" rel="noopener noreferrer">
-              <img src={ddblogo} alt="Logo" />
-            </a> 
-          </button>
-        </div>
         
+        <a href="https://us-west-2.console.aws.amazon.com/dynamodb/home?region=us-west-2#tables:" target="_blank" rel="noopener noreferrer">
+          <img src={ddblogo} alt="Logo" />
+        </a> 
+        </div>
         <CreateLineChart data={myChartArray} />
         <div className="App-info">
         <p>Every wind turbine has a range of wind speeds, typically around 30 to 55 mph. Speed other than this range is detected anomalous{" "}
-          <a href="https://www.wind-watch.org/faq-output.php" target="_blank" rel="noopener noreferrer">
-          (Source)
-          </a>
+        <a href="https://www.wind-watch.org/faq-output.php" target="_blank" rel="noopener noreferrer">
+        (Source)
+        </a>
         </p>
         </div>
       </header>
