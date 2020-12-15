@@ -1,0 +1,215 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: DynamoDB Streaming
+Parameters:
+  Email:
+    Description: Email address to send anomaly detection events.
+    Type: String
+    ConstraintDescription: myemail@example.com
+Resources:
+  rDynamoDBKinesisDataStreamsReplicationRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: !Sub '${AWS::StackName}-DynamoDBKinesisDataStreamsReplicationRole'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: kinesisreplication.dynamodb.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/AmazonKinesisFullAccess'
+  rTransformExecutionRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+      Policies:
+        - PolicyName: root
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'sns:Publish'
+                Resource: 
+                  - Ref: rSNSTopic
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/AmazonKinesisReadOnlyAccess'
+        - 'arn:aws:iam::aws:policy/CloudWatchLogsFullAccess'
+
+  rInputKinesisStream:
+    Type: 'AWS::Kinesis::Stream'
+    Properties:
+      Name: !Sub '${AWS::StackName}-InputKinesisStream'
+      ShardCount: 1
+
+  rOutputKinesisStream:
+    Type: 'AWS::Kinesis::Stream'
+    Properties:
+      Name: !Sub '${AWS::StackName}-OutputKinesisStream'
+      ShardCount: 1
+
+  rKDAFlinkApplication:
+    Type: 'AWS::KinesisAnalyticsV2::Application'
+    Properties:
+      ApplicationName: !Sub '${AWS::StackName}-windTurbineAggregator'
+      ApplicationDescription: >-
+        This application detects and alerts when wind turbine's avarage speed
+        goes above configured threshold
+      RuntimeEnvironment: FLINK-1_8
+      ServiceExecutionRole: !GetAtt 
+        - rServiceExecutionRole
+        - Arn
+      ApplicationConfiguration:
+        ApplicationCodeConfiguration:
+          CodeContent:
+            S3ContentLocation:
+              BucketARN: 'arn:aws:s3:::flink-awesome-app-code'
+              FileKey: wind-turbine-data-aggregator-app-2.0.6.jar
+          CodeContentType: ZIPFILE
+        EnvironmentProperties:
+          PropertyGroups:
+            - PropertyGroupId: WindTurbineEnvironment
+              PropertyMap:
+                region: !Sub '${AWS::Region}'
+                inputStreamName: !Ref rInputKinesisStream
+                outputStreamName: !Ref rOutputKinesisStream
+
+  rServiceExecutionRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: kinesisanalytics.amazonaws.com
+            Action: 'sts:AssumeRole'
+      Path: /
+      Policies:
+        - PolicyName: Open
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action: 
+                  - kinesis:PutRecord
+                  - kinesis:PutRecords
+                  - kinesis:DescribeStreamConsumer
+                  - kinesis:GetShardIterator
+                  - kinesis:GetRecords
+                  - kinesis:DescribeStream
+                  - logs:PutLogEvents
+                Resource: 
+                  - !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*'
+                  - !GetAtt rInputKinesisStream.Arn
+                  - !GetAtt rOutputKinesisStream.Arn
+              - Effect: Allow
+                Action: 
+                  - kinesis:ListStreams
+                  - kinesis:ListShards
+                  - kinesis:DescribeLimits
+                  - kinesis:ListStreamConsumers
+                  - logs:PutDestination
+                  - logs:CreateLogDelivery
+                  - logs:PutResourcePolicy
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - logs:PutMetricFilter
+                  - logs:CreateLogStream
+                  - logs:PutSubscriptionFilter
+                  - logs:PutRetentionPolicy
+                  - logs:CreateLogGroup
+                Resource: 
+                  - !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*'
+  rLambdaFunction:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      Environment:
+        Variables:
+          SNS_TOPIC_ARN:
+            Ref: rSNSTopic
+      Code:
+        ZipFile: |
+          from __future__ import print_function
+          import boto3
+          import base64
+          import os
+          import re
+          import json
+
+          client = boto3.client('sns')
+          topic_arn = os.environ['SNS_TOPIC_ARN']
+          # print('topic_arn {}'.format(topic_arn))
+          def lambda_handler(event, context):
+            output = []
+            success = 0
+            failure = 0
+            # print(event)
+            for record in event['Records']:
+                try:
+                    payload = base64.b64decode(record['kinesis']['data'])
+                    # print(payload)
+                    text = json.loads(payload)
+                    emailtext = 'Abnormal Wind Turbine Speed detected for ' + str(text['turbineID']) + ' having avg speed of '+ str(text['avgSpeed']) + '. \n \n NOTE: As per National Wind Watch every wind turbine has a range of wind speeds, typically around 30 to 55 mph, in which it will produce maximum capacity. When wind is high more than 70 mph, it is important to start shutdown in order to protect turbine from high wind storm.'
+                    client.publish(TopicArn=topic_arn, Message=emailtext, Subject='Abnormal Wind Turbine Speed detected')
+                    success += 1
+                except Exception as e:
+                    print(e)
+                    failure += 1
+            print('Successfully delivered {0} records, failed to deliver {1} records'.format(success, failure))
+            return {'records': output}
+      Handler: index.lambda_handler
+      Runtime: python3.7
+      Timeout: 60
+      Role: !GetAtt rTransformExecutionRole.Arn
+  rLambdaEventSource: 
+    Type: AWS::Lambda::EventSourceMapping
+    Properties: 
+      EventSourceArn: 
+        Fn::Join: 
+          - ""
+          - 
+            - "arn:aws:kinesis:"
+            - 
+              Ref: "AWS::Region"
+            - ":"
+            - 
+              Ref: "AWS::AccountId"
+            - ":stream/"
+            - 
+              Ref: "rOutputKinesisStream"
+      FunctionName: 
+        Fn::GetAtt: 
+          - "rLambdaFunction"
+          - "Arn"
+      StartingPosition: "TRIM_HORIZON"
+  rSNSTopic:
+    Type: 'AWS::SNS::Topic'
+  rEmailSubscription:
+    Type: 'AWS::SNS::Subscription'
+    Properties:
+      Endpoint: !Ref Email
+      Protocol: email
+      TopicArn: !Ref rSNSTopic
+Outputs:
+  InputKinesisDataStream:
+    Description: Input Kinesis Data Stream
+    Value: !GetAtt rInputKinesisStream.Arn
+  OutputKinesisDataStream:
+    Description: Output Kinesis Data Stream
+    Value: !GetAtt rOutputKinesisStream.Arn
+  OutputKinesisDataStream:
+    Description: Kinesis Data Analytics
+    Value: !GetAtt rKDAFlinkApplication.Arn
