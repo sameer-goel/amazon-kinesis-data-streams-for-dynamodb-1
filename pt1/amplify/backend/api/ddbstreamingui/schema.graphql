@@ -1,7 +1,0 @@
-type windspeed 
-@model {
-  id: ID!
-  deviceID: String
-  value: Int
-  index: Int
-}
