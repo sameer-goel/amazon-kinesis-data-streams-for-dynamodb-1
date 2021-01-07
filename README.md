@@ -2,6 +2,7 @@ Building a real-time notification system with Amazon Kinesis Data Streams for Am
 ================================================================================================================================================
 
 by Saurabh Shrivastava, Sameer Goel, Pratik Patel
+Please follow the complete [blog](https://aws.amazon.com/blogs/big-data/building-a-real-time-notification-system-with-amazon-kinesis-data-streams-for-amazon-dynamodb-and-amazon-kinesis-data-analytics-for-apache-flink/)
 
 Amazon DynamoDB helps you capture high-velocity data such as clickstream
 data to form customized user profiles and Internet of Things (IoT) data
