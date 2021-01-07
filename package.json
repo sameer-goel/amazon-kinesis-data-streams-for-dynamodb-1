@@ -13,6 +13,7 @@
     "@testing-library/user-event": "^7.2.1",
     "aws-amplify": "^3.3.3",
     "axios": "^0.21.1",
+    "ini": "^2.0.0",
     "light-toast": "^0.3.0",
     "react": "^16.13.1",
     "react-dom": "^16.13.1",
