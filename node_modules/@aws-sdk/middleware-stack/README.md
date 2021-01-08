@@ -1,6 +1,6 @@
 # @aws-sdk/middleware-stack
 
-[![NPM version](https://img.shields.io/npm/v/@aws-sdk/middleware-stack/beta.svg)](https://www.npmjs.com/package/@aws-sdk/middleware-stack)
+[![NPM version](https://img.shields.io/npm/v/@aws-sdk/middleware-stack/rc.svg)](https://www.npmjs.com/package/@aws-sdk/middleware-stack)
 [![NPM downloads](https://img.shields.io/npm/dm/@aws-sdk/middleware-stack.svg)](https://www.npmjs.com/package/@aws-sdk/middleware-stack)
 
 The package contains an implementation of middleware stack interface. Middleware
@@ -54,29 +54,9 @@ stack.add(middleware, {
   name: "myMiddleware",
 });
 stack.addRelativeTo(anotherMiddleware, {
-  step: "finalizeRequest",
   relation: "before", //or 'after'
   toMiddleware: "myMiddleware",
 });
-```
-
-You need to specify the `step` in `addRelativeTo()`. This is because the middleware function signature of each step is different, middleware for different step should not be mixed. The previous middleware **must** have a unique name, this is the only way to refer a known middleware when adding middleware relatively. Note that if specified `step` doesn't have a middleware named as the value in `toMiddleware`, this middleware will fallback to be added with absolute location.
-
-You can do this:
-
-```javascript
-stack.addRelativeTo(middleware1, {
-  step: "finalizeRequest",
-  name: "Middleware1",
-  relation: 'before',
-  toMiddleware: 'middleware2'
-}); //this will fall back to `add()`
-stack.addRelativeTo(middleware2, {
-  step: "finalizeRequest",
-  name: 'Middleware2'
-  relation: "after",
-  toMiddleware: "Middleware1"
-}); //this will be added after middleware1
 ```
 
 ## Removing Middleware
