@@ -44,7 +44,7 @@ function Windspeed() {
       const generateValues = { 
         index: i+j,
         deviceID: "device" + (Math.floor(Math.random() * 5) + 1),
-        value: Math.floor(Math.random() * upper) + lower
+        value: Math.floor(Math.random() * (upper-lower)) + lower
       };
       await API.graphql({ query: mutations.createWindspeed, variables: { input: generateValues}});
       setMyIndex(myIndex+1);
