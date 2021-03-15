@@ -19,7 +19,7 @@
     "node-notifier": "^9.0.0",
     "react": "^16.14.0",
     "immer": ">=8.0.1",
-    "react-dev-utils": "^10.2.1",
+    "react-dev-utils": "^11.0.4",
     "react-dom": "^16.14.0",
     "react-hook-form": "^6.14.0",
     "react-icons": "^3.11.0",
